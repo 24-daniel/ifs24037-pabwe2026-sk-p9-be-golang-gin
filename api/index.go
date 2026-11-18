@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -118,6 +119,20 @@ func restoreOriginalPath(r *http.Request) {
 // Handler adalah entry point yang dipanggil Vercel.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	seen := r.URL.String()
+	if r.URL.Query().Get("debug") == "1" {
+		// Mode diagnosis: tampilkan persis apa yang diterima fungsi dari Vercel.
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"method":      r.Method,
+			"url":         seen,
+			"path":        r.URL.Path,
+			"raw_query":   r.URL.RawQuery,
+			"request_uri": r.RequestURI,
+			"host":        r.Host,
+			"headers":     r.Header,
+		})
+		return
+	}
 	restoreOriginalPath(r)
 	w.Header().Set("X-Debug-Path", seen+" => "+r.URL.Path) // bantu diagnosis routing; aman dihapus
 	rt, err := initRouter()
