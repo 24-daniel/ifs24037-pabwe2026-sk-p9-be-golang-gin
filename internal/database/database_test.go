@@ -99,3 +99,32 @@ func TestSeed(t *testing.T) {
 	err = Seed(db, cfgEmptyUser)
 	assert.NoError(t, err)
 }
+
+func TestEnsureSchema(t *testing.T) {
+	db, err := ConnectTestDB()
+	assert.NoError(t, err)
+
+	// Dipanggil dengan cfg kosong (username admin default) pada DB yang sudah termigrasi tapi belum di-seed
+	cfg := &config.Config{}
+	assert.NoError(t, EnsureSchema(db, cfg))
+
+	var userCount int64
+	db.Model(&User{}).Count(&userCount)
+	assert.GreaterOrEqual(t, userCount, int64(2))
+
+	// Panggilan kedua melewati migrate + seed (schema sudah siap)
+	assert.NoError(t, EnsureSchema(db, cfg))
+	var userCount2 int64
+	db.Model(&User{}).Count(&userCount2)
+	assert.Equal(t, userCount, userCount2)
+}
+
+func TestEnsureSchema_MigrateError(t *testing.T) {
+	db, err := ConnectTestDB()
+	assert.NoError(t, err)
+	sqlDB, err := db.DB()
+	assert.NoError(t, err)
+	assert.NoError(t, sqlDB.Close())
+
+	assert.Error(t, EnsureSchema(db, &config.Config{}))
+}

@@ -75,6 +75,33 @@ func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(&User{}, &Post{})
 }
 
+// schemaReady true bila tabel dan akun bawaan (admin & member) sudah ada.
+func schemaReady(db *gorm.DB, cfg *config.Config) bool {
+	m := db.Migrator()
+	if !m.HasTable(&User{}) || !m.HasTable(&Post{}) {
+		return false
+	}
+	adminUsername := cfg.AdminUsername
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+	var count int64
+	db.Model(&User{}).Where("username IN ?", []string{adminUsername, "member"}).Count(&count)
+	return count >= 2
+}
+
+// EnsureSchema menjalankan Migrate + Seed hanya bila belum pernah dilakukan.
+// Berguna di lingkungan serverless agar cold start tidak lambat dan tidak saling bentrok.
+func EnsureSchema(db *gorm.DB, cfg *config.Config) error {
+	if schemaReady(db, cfg) {
+		return nil
+	}
+	if err := Migrate(db); err != nil {
+		return err
+	}
+	return Seed(db, cfg)
+}
+
 func Seed(db *gorm.DB, cfg *config.Config) error {
 	adminPassword := cfg.AdminPassword
 	if adminPassword == "" {
