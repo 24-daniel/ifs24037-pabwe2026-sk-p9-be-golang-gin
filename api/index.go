@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -92,8 +93,27 @@ func initRouter() (http.Handler, error) {
 	return router, nil
 }
 
+// restoreOriginalPath mengembalikan path & query asli request.
+// vercel.json me-rewrite semua request ke /api?__p=<path-asli>, karena fungsi
+// hanya menerima path hasil rewrite ("/api"), bukan path yang diminta klien.
+func restoreOriginalPath(r *http.Request) {
+	q := r.URL.Query()
+	if p, ok := q["__p"]; ok {
+		q.Del("__p")
+		r.URL.Path = "/" + strings.TrimPrefix(p[0], "/")
+		r.URL.RawPath = ""
+		r.URL.RawQuery = q.Encode()
+		r.RequestURI = r.URL.RequestURI()
+		return
+	}
+	if r.URL.Path == "/api" {
+		r.URL.Path = "/"
+	}
+}
+
 // Handler adalah entry point yang dipanggil Vercel.
 func Handler(w http.ResponseWriter, r *http.Request) {
+	restoreOriginalPath(r)
 	rt, err := initRouter()
 	if err != nil {
 		log.Printf("init gagal: %v", err)

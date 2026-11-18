@@ -51,7 +51,7 @@ func SetupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		c.JSON(http.StatusOK, parsed)
 	})
 
-	// Health check / base URL: GET / dan GET /api membalas JSON standar
+	// Health check / base URL: GET / membalas JSON standar
 	healthHandler := func(c *gin.Context) {
 		response.Success(c, http.StatusOK, "Delcom Blog API berjalan", gin.H{
 			"name":    "Delcom Blog API",
@@ -68,8 +68,6 @@ func SetupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// Main API Group
 	api := r.Group("/api")
 	{
-		api.GET("", healthHandler)
-
 		// 1. Public Endpoints
 		public := api.Group("/public")
 		{
