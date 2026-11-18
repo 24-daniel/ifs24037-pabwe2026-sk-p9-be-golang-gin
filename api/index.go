@@ -96,24 +96,30 @@ func initRouter() (http.Handler, error) {
 // restoreOriginalPath mengembalikan path & query asli request.
 // vercel.json me-rewrite semua request ke /api?__p=<path-asli>, karena fungsi
 // hanya menerima path hasil rewrite ("/api"), bukan path yang diminta klien.
+// Nilai placeholder yang tidak terganti (":p", "$1", dst) diabaikan.
 func restoreOriginalPath(r *http.Request) {
 	q := r.URL.Query()
-	if p, ok := q["__p"]; ok {
+	p, ok := q["__p"]
+	if ok {
 		q.Del("__p")
-		r.URL.Path = "/" + strings.TrimPrefix(p[0], "/")
-		r.URL.RawPath = ""
 		r.URL.RawQuery = q.Encode()
-		r.RequestURI = r.URL.RequestURI()
-		return
+		if !strings.HasPrefix(p[0], ":") && !strings.HasPrefix(p[0], "$") {
+			r.URL.Path = "/" + strings.TrimPrefix(p[0], "/")
+			r.URL.RawPath = ""
+			r.RequestURI = r.URL.RequestURI()
+			return
+		}
 	}
-	if r.URL.Path == "/api" {
+	if r.URL.Path == "/api" || r.URL.Path == "/api/index" {
 		r.URL.Path = "/"
 	}
 }
 
 // Handler adalah entry point yang dipanggil Vercel.
 func Handler(w http.ResponseWriter, r *http.Request) {
+	seen := r.URL.String()
 	restoreOriginalPath(r)
+	w.Header().Set("X-Debug-Path", seen+" => "+r.URL.Path) // bantu diagnosis routing; aman dihapus
 	rt, err := initRouter()
 	if err != nil {
 		log.Printf("init gagal: %v", err)
