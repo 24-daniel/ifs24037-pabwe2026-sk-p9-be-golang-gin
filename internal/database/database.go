@@ -46,9 +46,11 @@ func ConnectDB(cfg *config.Config) (*gorm.DB, error) {
 	if cfg.DBConnection == "sqlite" {
 		dialector = sqlite.Open(cfg.DBDatabase)
 	} else {
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta",
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta connect_timeout=10",
 			cfg.DBHost, cfg.DBUsername, cfg.DBPassword, cfg.DBDatabase, cfg.DBPort, cfg.DBSSLMode)
-		dialector = postgres.Open(dsn)
+		// PreferSimpleProtocol: kompatibel dengan connection pooler (Supabase/Neon/PgBouncer)
+		// pada lingkungan serverless sehingga tidak muncul error "prepared statement already exists".
+		dialector = postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{

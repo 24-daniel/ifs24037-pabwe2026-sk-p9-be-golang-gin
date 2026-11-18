@@ -40,6 +40,16 @@ func TestRouter_AllRoutes(t *testing.T) {
 
 	r := SetupRouter(cfg, db)
 
+	// 0. Test base URL / dan /api membalas JSON { status, message, data }
+	for _, path := range []string{"/", "/api"} {
+		w0 := httptest.NewRecorder()
+		req0, _ := http.NewRequest(http.MethodGet, path, nil)
+		r.ServeHTTP(w0, req0)
+		assert.Equal(t, http.StatusOK, w0.Code)
+		assert.Contains(t, w0.Body.String(), `"status":"success"`)
+		assert.Contains(t, w0.Body.String(), `"data"`)
+	}
+
 	// 1. Test 404 NoRoute
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/route-tidak-ada-uji", nil)

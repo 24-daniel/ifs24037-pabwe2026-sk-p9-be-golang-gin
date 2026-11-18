@@ -4,16 +4,60 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"app/internal/config"
 	"app/internal/database"
 	"app/internal/server"
+
+	"gorm.io/gorm"
 )
 
 var (
 	mu     sync.Mutex
 	router http.Handler
 )
+
+// schemaLockKey adalah kunci advisory lock PostgreSQL agar migrate/seed tidak
+// berjalan bersamaan dari banyak instance serverless (cold start paralel).
+const schemaLockKey = 90210
+
+// schemaReady true bila tabel dan akun bawaan (admin & member) sudah ada,
+// sehingga migrate + seed yang lambat bisa dilewati pada cold start berikutnya.
+func schemaReady(db *gorm.DB, cfg *config.Config) bool {
+	m := db.Migrator()
+	if !m.HasTable(&database.User{}) || !m.HasTable(&database.Post{}) {
+		return false
+	}
+	adminUsername := cfg.AdminUsername
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+	var count int64
+	if err := db.Model(&database.User{}).
+		Where("username IN ?", []string{adminUsername, "member"}).
+		Count(&count).Error; err != nil {
+		return false
+	}
+	return count >= 2
+}
+
+// prepareSchema menjalankan migrate + seed hanya bila perlu, dan diserialkan
+// antar-instance memakai advisory lock tingkat transaksi (aman untuk pooler).
+func prepareSchema(db *gorm.DB, cfg *config.Config) error {
+	if schemaReady(db, cfg) {
+		return nil
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", schemaLockKey).Error; err != nil {
+			return err
+		}
+		if err := database.Migrate(tx); err != nil {
+			return err
+		}
+		return database.Seed(tx, cfg)
+	})
+}
 
 // initRouter menyiapkan koneksi DB, migrate, seed, dan router sekali per instance.
 // Jika gagal, request berikutnya akan mencoba lagi.
@@ -31,10 +75,16 @@ func initRouter() (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := database.Migrate(db); err != nil {
-		return nil, err
+
+	// Serverless: banyak instance berjalan paralel, jaga agar jumlah koneksi per instance kecil
+	// supaya batas koneksi database tidak habis.
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(3)
+		sqlDB.SetMaxIdleConns(1)
+		sqlDB.SetConnMaxLifetime(5 * time.Minute)
 	}
-	if err := database.Seed(db, cfg); err != nil {
+
+	if err := prepareSchema(db, cfg); err != nil {
 		return nil, err
 	}
 
@@ -47,7 +97,9 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	rt, err := initRouter()
 	if err != nil {
 		log.Printf("init gagal: %v", err)
-		http.Error(w, `{"status":"error","message":"Server gagal inisialisasi"}`, http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"status":"error","message":"Server gagal inisialisasi"}`))
 		return
 	}
 	rt.ServeHTTP(w, r)

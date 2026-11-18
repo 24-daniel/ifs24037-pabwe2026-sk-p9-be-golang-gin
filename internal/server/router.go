@@ -51,6 +51,15 @@ func SetupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		c.JSON(http.StatusOK, parsed)
 	})
 
+	// Health check / base URL: GET / dan GET /api membalas JSON standar
+	healthHandler := func(c *gin.Context) {
+		response.Success(c, http.StatusOK, "Delcom Blog API berjalan", gin.H{
+			"name":    "Delcom Blog API",
+			"version": "1.0.0",
+		})
+	}
+	r.GET("/", healthHandler)
+
 	// 404 NoRoute handler
 	r.NoRoute(func(c *gin.Context) {
 		response.Fail(c, http.StatusNotFound, "Endpoint not found")
@@ -59,6 +68,8 @@ func SetupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// Main API Group
 	api := r.Group("/api")
 	{
+		api.GET("", healthHandler)
+
 		// 1. Public Endpoints
 		public := api.Group("/public")
 		{
