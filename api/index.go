@@ -95,7 +95,7 @@ func initRouter() (http.Handler, error) {
 }
 
 // restoreOriginalPath mengembalikan path & query asli request.
-// vercel.json me-rewrite semua request ke /api?__p=<path-asli>, karena fungsi
+// vercel.json me-rewrite semua request ke /api/index?__p=/<path-asli>, karena fungsi
 // hanya menerima path hasil rewrite ("/api"), bukan path yang diminta klien.
 // Nilai placeholder yang tidak terganti (":p", "$1", dst) diabaikan.
 func restoreOriginalPath(r *http.Request) {
@@ -111,7 +111,7 @@ func restoreOriginalPath(r *http.Request) {
 			return
 		}
 	}
-	if r.URL.Path == "/api" || r.URL.Path == "/api/index" {
+	if r.URL.Path == "/api" || r.URL.Path == "/api/index" || r.URL.Path == "/api/index.go" {
 		r.URL.Path = "/"
 	}
 }

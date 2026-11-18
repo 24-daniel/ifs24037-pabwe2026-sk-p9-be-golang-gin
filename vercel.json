@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/:path*", "destination": "/api?__p=:path*" }
+    { "source": "/(.*)", "destination": "/api/index?__p=/$1" }
   ]
 }
