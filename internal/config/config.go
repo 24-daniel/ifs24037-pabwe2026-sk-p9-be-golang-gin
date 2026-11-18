@@ -41,7 +41,7 @@ func LoadConfig(envFiles ...string) *Config {
 
 	return &Config{
 		AppEnv:               getEnv("APP_ENV", "development"),
-		AppPort:              getEnv("APP_PORT", "8081"),
+		AppPort:              getEnv("PORT", getEnv("APP_PORT", "8081")),
 		AppKey:               getEnv("APP_KEY", "delcom_blog_secret_key_super_secure_2026_random_string_32chars"),
 		AdminUsername:        getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword:        getEnv("ADMIN_PASSWORD", "admin"),
